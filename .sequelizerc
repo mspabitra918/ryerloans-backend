@@ -1,0 +1,12 @@
+const path = require('path');
+
+/**
+ * Keeps sequelize-cli pointed at plain-JS migrations under `database/`, so the
+ * CLI never needs ts-node and migrations stay runnable against a built image.
+ */
+module.exports = {
+  config: path.resolve('database', 'config.js'),
+  'migrations-path': path.resolve('database', 'migrations'),
+  'seeders-path': path.resolve('database', 'seeders'),
+  'models-path': path.resolve('src', 'database', 'models'),
+};

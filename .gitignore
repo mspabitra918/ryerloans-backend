@@ -1,0 +1,24 @@
+# dependencies
+node_modules/
+
+# build
+dist/
+build/
+
+# environment
+.env
+.env.*
+
+# logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+
+# OS
+.DS_Store
+
+# TypeScript
+*.tsbuildinfo
+
+# coverage
+coverage/
