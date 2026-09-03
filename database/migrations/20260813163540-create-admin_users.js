@@ -82,9 +82,27 @@ module.exports = {
     await queryInterface.addIndex('admin_users', ['login_id'], {
       unique: true,
     });
+
+    // Deferred from create-applications-table: that migration runs first, so it
+    // cannot declare applications.called_in_by_admin's FK inline against a
+    // table that does not exist yet. The name matches the one Postgres would
+    // have generated for the inline constraint, so a database built before this
+    // split and one built after are identical.
+    await queryInterface.addConstraint('applications', {
+      fields: ['called_in_by_admin'],
+      type: 'foreign key',
+      name: 'applications_called_in_by_admin_fkey',
+      references: { table: 'admin_users', field: 'id' },
+      onUpdate: 'CASCADE',
+      onDelete: 'SET NULL',
+    });
   },
 
   async down(queryInterface, Sequelize) {
+    await queryInterface.removeConstraint(
+      'applications',
+      'applications_called_in_by_admin_fkey',
+    );
     await queryInterface.dropTable('admin_users');
     await queryInterface.sequelize.query(
       'DROP TYPE IF EXISTS "enum_admin_roles";',

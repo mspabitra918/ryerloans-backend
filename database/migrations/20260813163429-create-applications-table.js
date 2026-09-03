@@ -251,14 +251,11 @@ module.exports = {
       called_in_at: {
         type: Sequelize.DATE,
       },
+      // The FK to admin_users is added by the create-admin_users migration
+      // rather than declared inline: this migration has the earlier timestamp,
+      // so admin_users does not exist yet at this point.
       called_in_by_admin: {
         type: Sequelize.UUID,
-        references: {
-          model: 'admin_users',
-          key: 'id',
-        },
-        onUpdate: 'CASCADE',
-        onDelete: 'SET NULL',
       },
 
       // Decisioning
