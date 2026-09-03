@@ -22,3 +22,6 @@ yarn-debug.log*
 
 # coverage
 coverage/
+
+# local document storage (superseded by Supabase Storage)
+.storage/

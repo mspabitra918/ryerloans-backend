@@ -4,35 +4,33 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import * as fs from 'fs/promises';
-import * as path from 'path';
+// Local-disk driver imports — kept with the commented driver below.
+// import * as fs from 'fs/promises';
+// import * as path from 'path';
 
 /**
- * Object storage for borrower documents.
+ * Object storage for borrower documents, backed by Supabase Storage.
  *
- * Two drivers behind one interface:
+ * There is one driver: Supabase Storage over its REST API. The backend runs on
+ * Vercel, where the filesystem is per-invocation scratch space and anything
+ * written to it is gone before the underwriter opens the file — so a disk
+ * driver is not a fallback, it is silent data loss that only shows up in
+ * production. The former `local` driver is kept commented out at the bottom of
+ * this file for reference; do not re-enable it on a deployed environment.
  *
- *  - `supabase` — Supabase Storage over its REST API. This is the production
- *    driver: the backend runs on Vercel, where the filesystem is per-invocation
- *    scratch space and anything written to it is gone before the underwriter
- *    opens the file.
- *  - `local` — a directory on disk, used only when Supabase is not configured
- *    so the flow is runnable against a laptop without credentials.
- *
- * The driver is chosen from the environment rather than injected, because the
- * choice is deployment configuration, not a runtime decision: a request must
- * never be able to pick where a borrower's ID lands.
+ * Configuration comes from the environment, never from a request: a request
+ * must never be able to pick where a borrower's ID lands.
  *
  * Nothing here talks to the database. Keys are opaque strings the caller
  * generates and stores in `documents.s3_key`.
  */
 
-export type StorageDriver = 'supabase' | 'local';
+// export type StorageDriver = 'supabase' | 'local';
 
 /** Default bucket name; must be a *private* bucket. */
 const DEFAULT_BUCKET = 'loan-documents';
 
-const DEFAULT_LOCAL_DIR = '.storage/documents';
+// const DEFAULT_LOCAL_DIR = '.storage/documents';
 
 @Injectable()
 export class StorageService {
@@ -45,54 +43,33 @@ export class StorageService {
   private readonly supabaseKey =
     process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_KEY ?? '';
   private readonly bucket = process.env.SUPABASE_DOCS_BUCKET ?? DEFAULT_BUCKET;
-  private readonly localDir = path.resolve(
-    process.env.STORAGE_LOCAL_DIR ?? DEFAULT_LOCAL_DIR,
-  );
-
-  /** Resolved once: the driver cannot change while the process is alive. */
-  readonly driver: StorageDriver;
+  // private readonly localDir = path.resolve(
+  //   process.env.STORAGE_LOCAL_DIR ?? DEFAULT_LOCAL_DIR,
+  // );
 
   /** Guards the best-effort bucket bootstrap so it runs at most once. */
   private bucketReady: Promise<void> | null = null;
 
   constructor() {
-    const requested = process.env.STORAGE_DRIVER as StorageDriver | undefined;
-    const supabaseConfigured = Boolean(this.supabaseUrl && this.supabaseKey);
-
-    if (requested === 'local') {
-      this.driver = 'local';
-    } else if (requested === 'supabase' || supabaseConfigured) {
-      this.driver = 'supabase';
-    } else {
-      this.driver = 'local';
-    }
-
-    if (this.driver === 'supabase' && !supabaseConfigured) {
+    if (!this.supabaseUrl || !this.supabaseKey) {
       /*
        * Fail loudly at boot rather than at the first upload. A borrower who
        * has already picked a file off their phone should not be the one to
        * discover the bucket credentials are missing.
        */
-      this.logger.error(
-        'STORAGE_DRIVER=supabase but SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY are not set — uploads will fail',
-      );
-    }
+      const message =
+        'Document storage is not configured: set SUPABASE_URL and ' +
+        'SUPABASE_SERVICE_ROLE_KEY. There is no local-disk fallback.';
 
-    if (this.driver === 'local') {
-      this.logger.warn(
-        `Document storage is using the local-disk driver (${this.localDir}). ` +
-          'Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY before deploying — ' +
-          'a serverless filesystem does not survive between requests.',
-      );
+      this.logger.error(message);
+      throw new Error(message);
     }
   }
 
   /* --------------------------------------------------------------- public */
 
   async put(key: string, body: Buffer, contentType: string): Promise<void> {
-    return this.driver === 'supabase'
-      ? this.supabasePut(key, body, contentType)
-      : this.localPut(key, body);
+    return this.supabasePut(key, body, contentType);
   }
 
   /**
@@ -101,9 +78,7 @@ export class StorageService {
    * truth, and the one that was validated on the way in.
    */
   async get(key: string): Promise<Buffer> {
-    return this.driver === 'supabase'
-      ? this.supabaseGet(key)
-      : this.localGet(key);
+    return this.supabaseGet(key);
   }
 
   /**
@@ -113,8 +88,7 @@ export class StorageService {
    */
   async remove(key: string): Promise<void> {
     try {
-      if (this.driver === 'supabase') await this.supabaseRemove(key);
-      else await this.localRemove(key);
+      await this.supabaseRemove(key);
     } catch (error) {
       this.logger.warn(
         `Could not delete stored object ${key}: ${(error as Error).message}`,
@@ -241,42 +215,52 @@ export class StorageService {
 
   /* ---------------------------------------------------------------- local */
 
-  /**
-   * Keys are generated server-side from a UUID, but this still resolves and
-   * re-checks the path: "the caller is trusted" is exactly the assumption path
-   * traversal bugs are built on.
+  /*
+   * Local-disk driver — DISABLED. Superseded by Supabase Storage above.
+   *
+   * It wrote borrower documents under `.storage/documents/applications/<id>/`,
+   * which works on a laptop and loses every file on Vercel. Kept only so the
+   * shape of the old driver is on record; re-enabling it means re-enabling the
+   * `fs`/`path` imports, `DEFAULT_LOCAL_DIR`, `localDir`, and driver selection
+   * at the top of this file.
    */
-  private localPath(key: string): string {
-    const resolved = path.resolve(this.localDir, key);
 
-    if (
-      resolved !== this.localDir &&
-      !resolved.startsWith(this.localDir + path.sep)
-    ) {
-      throw new InternalServerErrorException('Invalid storage key');
-    }
-
-    return resolved;
-  }
-
-  private async localPut(key: string, body: Buffer): Promise<void> {
-    const target = this.localPath(key);
-
-    await fs.mkdir(path.dirname(target), { recursive: true });
-    await fs.writeFile(target, body, { mode: 0o600 });
-  }
-
-  private async localGet(key: string): Promise<Buffer> {
-    try {
-      return await fs.readFile(this.localPath(key));
-    } catch {
-      throw new NotFoundException('Document not found');
-    }
-  }
-
-  private async localRemove(key: string): Promise<void> {
-    await fs.rm(this.localPath(key), { force: true });
-  }
+  // /**
+  //  * Keys are generated server-side from a UUID, but this still resolves and
+  //  * re-checks the path: "the caller is trusted" is exactly the assumption path
+  //  * traversal bugs are built on.
+  //  */
+  // private localPath(key: string): string {
+  //   const resolved = path.resolve(this.localDir, key);
+  //
+  //   if (
+  //     resolved !== this.localDir &&
+  //     !resolved.startsWith(this.localDir + path.sep)
+  //   ) {
+  //     throw new InternalServerErrorException('Invalid storage key');
+  //   }
+  //
+  //   return resolved;
+  // }
+  //
+  // private async localPut(key: string, body: Buffer): Promise<void> {
+  //   const target = this.localPath(key);
+  //
+  //   await fs.mkdir(path.dirname(target), { recursive: true });
+  //   await fs.writeFile(target, body, { mode: 0o600 });
+  // }
+  //
+  // private async localGet(key: string): Promise<Buffer> {
+  //   try {
+  //     return await fs.readFile(this.localPath(key));
+  //   } catch {
+  //     throw new NotFoundException('Document not found');
+  //   }
+  // }
+  //
+  // private async localRemove(key: string): Promise<void> {
+  //   await fs.rm(this.localPath(key), { force: true });
+  // }
 }
 
 /** Percent-encode each path segment but keep the slashes that structure the key. */

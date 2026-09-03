@@ -51,7 +51,7 @@
     "date-fns-tz": "^3.2.0",
     "ioredis": "^6.0.0",
     "nest-winston": "^1.10.2",
-    "otplib": "^13.4.1",
+    "otpauth": "^9.5.1",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "pg": "^8.23.0",

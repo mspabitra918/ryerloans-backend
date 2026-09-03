@@ -431,6 +431,10 @@ export class ApplicationWorkflowService {
         }),
     });
 
+    console.log(
+      `Document request for ${application.application_id}: ${this.borrowerBaseUrl()}/documents/${token}`,
+    );
+
     return {
       ...result,
       upload_url: `${this.borrowerBaseUrl()}/documents/${token}`,
@@ -1408,7 +1412,8 @@ export class ApplicationWorkflowService {
     return (
       process.env.BORROWER_BASE_URL ??
       process.env.FRONTEND_URL ??
-      'https://ryerloans.com'
+      // 'https://ryerloans.com'
+      'http://localhost:3000'
     ).replace(/\/$/, '');
   }
 

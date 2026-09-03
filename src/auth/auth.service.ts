@@ -11,7 +11,7 @@ import { InjectModel } from '@nestjs/sequelize';
 import { Op } from 'sequelize';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
-import { generateSecret, generateURI, verify as verifyOtp } from 'otplib';
+import * as OTPAuth from 'otpauth';
 import * as QRCode from 'qrcode';
 
 import { AdminRole, AdminUser } from '../admin-users/models/admin-user.model';
@@ -56,6 +56,13 @@ const CHALLENGE_TTL_SECONDS = 120;
  * a dead token.
  */
 const ENROLLMENT_TTL_SECONDS = 10 * 60;
+
+/*
+ * 160 bits, the size RFC 4226 recommends for HMAC-SHA1 and the size the
+ * previous otplib-based enrollment emitted. Keeping it identical means secrets
+ * already sitting in admin_users.mfa_secret still verify unchanged.
+ */
+const SECRET_BYTES = 20;
 
 export interface LoginChallenge {
   mfa_required: true;
@@ -191,12 +198,17 @@ export class AuthService {
      * the secret the admin had already scanned, and every code their app
      * produced from then on was rejected as invalid.
      */
-    const secret = user.mfa_secret ?? generateSecret();
+    const secret =
+      user.mfa_secret ?? new OTPAuth.Secret({ size: SECRET_BYTES }).base32;
     const issuer = this.configService.get<string>(
       'MFA_ISSUER',
       'Ryer Loans Admin',
     );
-    const otpauthUrl = generateURI({ issuer, label: user.email, secret });
+    const otpauthUrl = new OTPAuth.TOTP({
+      issuer,
+      label: user.email,
+      secret: OTPAuth.Secret.fromBase32(secret),
+    }).toString();
 
     await user.update({ mfa_secret: secret, mfa_enabled: false });
 
@@ -235,18 +247,16 @@ export class AuthService {
     }
 
     /*
-     * epochTolerance accepts the adjacent 30-second windows: hand-typed codes
+     * window: 1 accepts the adjacent 30-second steps: hand-typed codes
      * routinely arrive a few seconds after they were read off the screen, and
      * a strictly-current-window check rejects a correct code often enough that
      * admins start blaming the portal.
      */
-    const result = await verifyOtp({
-      secret: user.mfa_secret,
-      token: params.code,
-      epochTolerance: 30,
-    });
+    const delta = new OTPAuth.TOTP({
+      secret: OTPAuth.Secret.fromBase32(user.mfa_secret),
+    }).validate({ token: params.code, window: 1 });
 
-    if (!result.valid) {
+    if (delta === null) {
       this.logger.warn(
         `Failed TOTP for admin ${user.email} from ${params.ipAddress}`,
       );
