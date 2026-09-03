@@ -27,9 +27,6 @@
     "seed:undo": "sequelize-cli db:seed:undo",
     "seed:undo:all": "sequelize-cli db:seed:undo:all"
   },
-  "overrides": {
-    "@scure/base": "1.2.1"
-  },
   "dependencies": {
     "@nestjs/bull": "^11.0.5",
     "@nestjs/bullmq": "^11.0.5",
@@ -54,7 +51,7 @@
     "date-fns-tz": "^3.2.0",
     "ioredis": "^6.0.0",
     "nest-winston": "^1.10.2",
-    "otplib": "13.4.1",
+    "otplib": "^13.4.1",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "pg": "^8.23.0",
