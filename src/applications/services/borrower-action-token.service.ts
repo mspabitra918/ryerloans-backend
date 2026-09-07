@@ -195,13 +195,14 @@ export class BorrowerActionTokenService {
      *
      * Restore the block below before deploying.
      */
-    const base = 'http://localhost:3000';
+    // const base = 'http://localhost:3000';
 
-    // const base = (
-    //   process.env.BORROWER_BASE_URL ??
-    //   process.env.FRONTEND_URL ??
-    //   'https://ryerloans.com'
-    // ).replace(/\/+$/, '');
+    const base = (
+      process.env.BORROWER_BASE_URL ??
+      process.env.FRONTEND_URL ??
+      // 'https://ryerloans.com' is the old production domain, but the frontend is now on Vercel and the old domain is not a valid CORS origin. The new production domain is 'https://ryerloans-frontend.vercel.app/'.
+      'https://ryerloans-frontend.vercel.app'
+    ).replace(/\/+$/, '');
 
     return `${base}${this.buildPath(purpose, token)}`;
   }

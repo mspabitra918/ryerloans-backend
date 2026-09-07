@@ -11,7 +11,8 @@ export const SUPPORT_PHONE_HREF = 'tel:+17472005220';
 
 export const SUPPORT_HOURS = 'Monday – Friday, 6:00 AM – 4:00 PM PT';
 
-export const HOME_URL = 'http://localhost:3000';
+// export const HOME_URL = 'http://localhost:3000';
+export const HOME_URL = 'https://ryerloans-frontend.vercel.app';
 // export const HOME_URL = 'https://www.ryerloans.com';
 export const HOME_URL_DISPLAY = 'www.ryerloans.com';
 

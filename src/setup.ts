@@ -35,7 +35,12 @@ export function configureApp(app: INestApplication): void {
     envOrigins.length > 0
       ? envOrigins
       : process.env.NODE_ENV !== 'production'
-        ? [defaultProdOrigin, 'http://localhost:3000']
+        ? [
+            defaultProdOrigin,
+            'https://ryerloans-frontend.vercel.app',
+            'http://localhost:3000',
+            'http://localhost:3001',
+          ]
         : [defaultProdOrigin];
 
   app.enableCors({
