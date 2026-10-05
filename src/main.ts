@@ -11,7 +11,7 @@ async function bootstrap() {
   app.getHttpAdapter().get('/', (req, res) => {
     res.json({
       success: true,
-      message: 'RiverCash Loans Backend API is running successfully.',
+      message: 'Ryerloans Loans Backend API is running successfully.',
     });
   });
 
