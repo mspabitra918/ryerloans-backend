@@ -40,6 +40,10 @@ export function configureApp(app: INestApplication): void {
             'https://ryerloans-frontend.vercel.app',
             'http://localhost:3000',
             'http://localhost:3001',
+            'https://ryerloans.com',
+            'https://www.ryerloans.com',
+            'https://admin.ryerloans.com',
+            'https://admin.ryerloans.com',
           ]
         : [defaultProdOrigin];
 
