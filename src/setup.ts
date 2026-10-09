@@ -44,6 +44,7 @@ export function configureApp(app: INestApplication): void {
             'https://www.ryerloans.com',
             'https://admin.ryerloans.com',
             'https://admin.ryerloans.com',
+            'http://93.188.164.244:5000',
           ]
         : [defaultProdOrigin];
 
